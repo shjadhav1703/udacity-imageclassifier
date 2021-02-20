@@ -98,8 +98,10 @@ def validation(model, test_dataloaders, criterion, device):
     return test_loss, accuracy
 
 def train_network_model(model, train_dataloaders, valid_dataloaders, device,
-                                      criterion, optimizer, epochs, print_every, steps):
+                                      criterion, optimizer, epochs):
     # Train classifier layer
+    steps = 0
+    print_every = 30
     print("Training process started..!")
     for epoch in range(epochs):
         running_loss = 0
@@ -152,41 +154,25 @@ def test_model(model, test_dataloaders, device):
 
     print('Accuracy of the network on the test images: %d %%' % (100 * correct / total))
 
-# main_prog function
-def main_prog():
-    # command line arguments
-    args = arg_pass()
-    # Load data using image dataset
-    train_dataloaders, valid_dataloaders, test_dataloaders, train_data = load_data()
-    # Load pre-train model
-    model = models.vgg16(pretrained=True)
-    model.name = "vgg16"
-    print("Network specified as vgg16")
+def pre_train_model(model_arch):
+    if model_arch == 'vgg16':
+        model = models.vgg16(pretrained=True)
+        model.name = model_arch
+    elif model_arch == 'densenet121':
+        model = models.densenet121(pretrained=True)
+        model.name = model_arch
+    else:
+        print("Model architecture is not valid model")
+
     # freeze model parameters
     for param in model.parameters():
         param.requires_grad = False
-    # Define a new, untrained feed-forward network as a classifier, using ReLU activations and dropout
-    model.classifier = initial_classifier(model, hidden_units=args.hidden_units)
-    # check for cuda\cpu
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device);
-    # Define loss and optimizer
-    if type(args.learning_rate) == type(None):
-        learning_rate = 0.001
-    else:
-        learning_rate = args.learning_rate
-    criterion = nn.NLLLoss()
-    optimizer = optim.Adam(model.classifier.parameters(), lr=learning_rate)
-    # Train the classifier
-    steps = 0
-    print_every = 30
-    trained_model = train_network_model(model, train_dataloaders, valid_dataloaders, device, criterion, optimizer, args.epochs,
-                        print_every, steps)
 
-    # Test your trained_model network and save model to the checkpoint
-    test_model(trained_model, test_dataloaders, device)
-    # save the model
-    trained_model.class_to_idx = train_data.class_to_idx
+    return model
+
+def create_checkpoint(model,train_data, save_dir):
+    # save model
+    model.class_to_idx = train_data.class_to_idx
     checkpoint = {'architecture': model.name,
                       'classifier': model.classifier,
                       'class_to_idx': model.class_to_idx,
@@ -194,6 +180,32 @@ def main_prog():
 
     torch.save(checkpoint, 'img_classifier_checkpoint.pth')
     print("Save  checkpoint completed")
+
+# main_prog function
+def main_prog():
+    # command line arguments
+    args = arg_pass()
+    # Load data using image dataset
+    train_dataloaders, valid_dataloaders, test_dataloaders, train_data = load_data()
+    # Load pre-train model
+    model = pre_train_model(model_arch=args.arch )
+
+    # Define a new, untrained feed-forward network as a classifier, using ReLU activations and dropout
+    model.classifier = initial_classifier(model, hidden_units=args.hidden_units)
+    # check for cuda\cpu
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device);
+    # Define loss and optimizer
+    criterion = nn.NLLLoss()
+    optimizer = optim.Adam(model.classifier.parameters(), lr=args.learning_rate)
+    # Train the classifier
+    trained_model = train_network_model(model, train_dataloaders, valid_dataloaders, device, criterion, optimizer, args.epochs)
+
+    # Test your trained_model network and save model to the checkpoint
+    test_model(trained_model, test_dataloaders, device)
+    # save the model
+    create_checkpoint(trained_model,train_data, args.save_dir)
+
 
 # Project : train an image classifier to recognize different species of flowers
 # Run the main program to train model
