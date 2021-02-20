@@ -193,7 +193,10 @@ def main_prog():
     # Define a new, untrained feed-forward network as a classifier, using ReLU activations and dropout
     model.classifier = initial_classifier(model, hidden_units=args.hidden_units)
     # check for cuda\cpu
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if args.gpu and torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
     model.to(device);
     # Define loss and optimizer
     criterion = nn.NLLLoss()

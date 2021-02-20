@@ -23,24 +23,32 @@ def args_pass():
     args.add_argument('checkpoint', default='/home/workspace/ImageClassifier/img_classifier_checkpoint.pth', nargs='*', action="store",
                     type=str)
     args.add_argument('--top_k', default=5, dest="top_k", action="store", type=int)
+    args.add_argument('--arch', dest="arch", action="store", default="vgg16", type=str)
+    args.add_argument('--category_names', dest="category_names", action="store", default="cat_to_name.json", type=str)
+    args.add_argument('--gpu', dest="gpu", action="store", default="gpu")
 
     # parse args
     pass_args = args.parse_args()
     return pass_args
 
-
-def load_checkpoint_rebuild_model():
+def load_checkpoint_rebuild_model(model_arch):
     """
     Load checkpoint and rebuild model
     """
-    # Load the saved checkpoint file
-    checkpoint = torch.load("img_classifier_checkpoint.pth")
-    # Download pretrained model
-    model = models.vgg16(pretrained=True)
-    model.name = "vgg16"
-    # Freeze parameters
+    if model_arch == 'vgg16':
+        model = models.vgg16(pretrained=True)
+        model.name = model_arch
+    elif model_arch == 'densenet121':
+        model = models.densenet121(pretrained=True)
+        model.name = model_arch
+    else:
+        print("Model architecture is not defined")
+
+    # freeze model parameters
     for param in model.parameters():
         param.requires_grad = False
+
+    checkpoint = torch.load("img_classifier_checkpoint.pth")
     # Load from checkpoint
     model.class_to_idx = checkpoint['class_to_idx']
     model.classifier = checkpoint['classifier']
@@ -93,17 +101,20 @@ def main_prog_predict():
     # define command line arguments for prediction
     args = args_pass()
     # Load the category json file
-    with open('cat_to_name.json', 'r') as f:
+    with open(args.category_names,'r') as f:
         cat_to_name = json.load(f)
 
     # Using checkpoint from train.py, load the trained model
-    model = load_checkpoint_rebuild_model()
+    model = load_checkpoint_rebuild_model(model_arch=args.arch)
 
     # process image
     image_tensor = process_image(args.input_img)
 
     # check for cuda\cpu
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    if args.gpu and torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
     model.to(device);
 
     # Use processed image to predict, A common practice is to predict the top 5 or so (usually called top-K) most probable classes
